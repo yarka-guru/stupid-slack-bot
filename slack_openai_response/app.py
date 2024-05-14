@@ -31,14 +31,16 @@ def lambda_handler(event, context):
 
         if 'text' in slack_event:
             text_content = slack_event['text']
+            openai_response = generate_openai_response(text_content)
         elif 'files' in slack_event:
             text_content = process_files(slack_event['files'])
+            openai_response = generate_openai_response(text_content)
         else:
             text_content = "No recognizable content to process."
+            openai_response = generate_openai_response(text_content)
 
         response_channel = slack_event.get('channel')
         thread_ts = slack_event.get('ts')
-        openai_response = generate_openai_response(text_content)
         post_message_to_slack(response_channel, openai_response, thread_ts)
 
         return {'statusCode': 200, 'body': 'Event processed'}
