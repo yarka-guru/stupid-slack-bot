@@ -1,126 +1,98 @@
-# Slack Bot with OpenAI Integration
+# Serverless Slack App with OpenAI Integration
 
-This project creates a Slack bot that responds to messages in a humorous, IT-oriented manner using the OpenAI GPT-4 model. The bot generates short, humorous comments with IT and sysadmin jokes.
+## Description
 
-## Prerequisites
+This document details the setup and deployment of a serverless Slack application that integrates with OpenAI to process and respond to Slack messages. The app utilizes AWS Lambda, AWS Secrets Manager, and the Slack and OpenAI SDKs.
 
-- Python 3.8 or higher
-- AWS account (for deploying the Lambda function)
-- Slack account with admin permissions to create and configure Slack apps
-- AWS SAM CLI installed (for deployment)
+## Requirements
 
-## Setup
+- AWS Account
+- Slack Account
+- OpenAI Account
 
-### 1. Clone the Repository
+## Installation Steps
 
-Clone this repository to your local machine:
+### Step 1: Create AWS Secrets
 
-```bash
-git clone https://github.com/yarka-guru/slack-bot-openai.git
-cd slack-bot-openai
-```
-
-### 2. Install Dependencies
-
-Create a virtual environment and install the required dependencies:
+Store Slack Bot Token and OpenAI API Key securely in AWS Secrets Manager:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+aws secretsmanager create-secret --name SlackBotToken --secret-string '{"SLACK_BOT_TOKEN":"your_slack_bot_token"}'
+aws secretsmanager create-secret --name OpenAIApiKey --secret-string '{"OPENAI_API_KEY":"your_openai_api_key"}'
 ```
 
-### 3. Set Up Environment Variables
+### Step 2: Slack App and Permissions
 
-Create a `.env` file in the project root and add your Slack bot token and OpenAI API key:
+1. **Create a Slack App**:
+   - Go to the [Slack API Apps](https://api.slack.com/apps) page.
+   - Click "Create New App" and follow the prompts.
 
-```plaintext
-SLACK_BOT_TOKEN=your-slack-bot-token
-OPENAI_API_KEY=your-openai-api-key
-```
+2. **Configure OAuth Scopes**:
+   - Under **OAuth & Permissions**, add the following OAuth scopes under **Bot Token Scopes**:
+     - `app_mentions:read`
+     - `channels:history`
+     - `channels:read`
+     - `chat:write`
+     - `chat:write.public`
+     - `commands`
+     - `files:read`
+     - `files:write`
+     - `groups:history`
+     - `im:history`
+     - `incoming-webhook`
+     - `mpim:history`
 
-### 4. Create a Slack App
+3. **Event Subscriptions**:
+   - Enable **Event Subscriptions** and add the following **Bot Events**:
+     - `message.channels`
+     - `message.groups`
+     - `message.im`
+     - `message.mpim`
 
-1. Go to the [Slack API](https://api.slack.com/apps) page.
-2. Click "Create New App" and follow the prompts to create a new app.
-3. In your app settings, navigate to "OAuth & Permissions".
-4. Under "OAuth Tokens & Redirect URLs", add the following OAuth scopes:
-    - `bot`
-    - `channels:history`
-    - `channels:read`
-    - `chat:write`
-    - `chat:write.public`
-    - `files:read`
-    - `groups:history`
-    - `im:history`
-    - `mpim:history`
-5. Install the app to your workspace and copy the OAuth access token.
+4. **Install the App**:
+   - Install the app to your workspace and copy the OAuth access token.
 
-### 5. Set Up Event Subscriptions
+### Step 3: Deploy with AWS SAM
 
-1. In your app settings, navigate to "Event Subscriptions".
-2. Enable "Event Subscriptions".
-3. Set the "Request URL" to your server's endpoint (where your Lambda function will be deployed).
-4. Add the following bot events:
-    - `message.channels`
-    - `message.groups`
-    - `message.im`
-    - `message.mpim`
-
-### 6. Deploy Using AWS SAM CLI
-
-#### Step 1: Install AWS SAM CLI
-
-Follow the instructions to install the AWS SAM CLI from the [official documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html).
-
-#### Step 2: Create `template.yaml`
-
-Ensure you have the `template.yaml` file in the root of your project
-
-#### Step 3: Build and Deploy
-
-Build and deploy the Lambda function using the AWS SAM CLI:
+Deploy the application using AWS SAM CLI:
 
 ```bash
 sam build
 sam deploy --guided
 ```
 
-During the guided deployment, you will be prompted to enter the parameters:
-- `SlackBotToken`: Your Slack bot token.
-- `OpenAIApiKey`: Your OpenAI API key.
+Follow the prompts to configure your stack name, AWS region, and parameter overrides for `SlackBotTokenSecretName` and `OpenAIApiKeySecretName`.
 
-Follow the prompts to complete the deployment.
+### Step 4: Connect Slack App to AWS
 
-### Code Overview
+Set the following environment variables in the AWS Lambda configuration:
 
-#### `lambda_function.py`
+- `SLACK_BOT_TOKEN_SECRET_NAME` with the name of the secret containing the Slack Bot API Token.
+- `OPENAI_API_KEY_SECRET_NAME` with the name of the secret containing the OpenAI API Key.
 
-This file contains the main logic for handling Slack events and generating responses using the OpenAI API.
+### Step 5: API Endpoints
 
-##### Key Functions:
-
-- `lambda_handler(event, context)`: The main entry point for the Lambda function. It handles incoming Slack events.
-- `process_files(files)`: Processes image files and returns their URLs.
-- `generate_openai_response(content)`: Generates a humorous IT-oriented response using the OpenAI API.
-- `post_message_to_slack(channel, message)`: Posts a message to a Slack channel using the Slack API.
+Upon deployment, AWS SAM will provide an API endpoint URL. Configure this URL in your Slack application settings under **Event Subscriptions**.
 
 
-## Usage
+### Secrets Management
 
-Once everything is set up, your Slack bot will listen for messages in the channels it has access to and respond with humorous, IT-oriented comments.
+Utilizes AWS Secrets Manager to securely store and retrieve the Slack Bot Token and OpenAI API Key.
 
-### Triggering the Bot
+### OpenAI Integration
 
-- Send a message in a Slack channel or direct message where the bot is present.
-- The bot will generate a short, humorous response based on the content of the message.
+Uses the OpenAI Python SDK to generate responses or images based on the text received from Slack messages.
 
-### Example Interaction
+### Error Handling
 
-User: "I'm having trouble with my server."
 
-Bot: "Схоже, твій сервер вирішив піти на каву. Час зробити перезавантаження, інакше каву доведеться купувати адміну!"
 
-## License
+Comprehensive logging and error handling are implemented to manage and debug API calls and response generation.
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+## Additional Notes
+
+- Ensure that your AWS IAM roles and policies are correctly set up to allow Lambda functions to access Secrets Manager and post logs.
+- Update your Slack and OpenAI API keys periodically for security.
+- For a detailed guide on creating a Slack app and adding permissions, refer to the [Slack API documentation](https://api.slack.com/apps).
+
+By following these steps, your Serverless Slack App with OpenAI integration should be fully functional, allowing interactive, AI-powered responses within your Slack channels.
