@@ -62,7 +62,7 @@ def generate_openai_response(content):
     )
     prompt = f"{base_prompt} {content}"
     try:
-        response = client.chat.completions.create(model="gpt-4-turbo",
+        response = client.chat.completions.create(model="gpt-4o",
                                                   messages=[
                                                       {"role": "system", "content": base_prompt},
                                                       {"role": "user", "content": content}
