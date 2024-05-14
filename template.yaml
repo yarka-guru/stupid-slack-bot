@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless Slack App with OpenAI Integration
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+    Tracing: Active
+    Runtime: python3.12
+
+Parameters:
+  SlackBotToken:
+    Type: String
+    Description: Slack Bot API Token
+  OpenAIApiKey:
+    Type: String
+    Description: OpenAI API Key
+
+Resources:
+  MyLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: ["sts:AssumeRole"]
+      Policies:
+        - PolicyName: "LambdaFunctionPolicy"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action: "secretsmanager:GetSecretValue"
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
+
+  SlackOpenAIResponseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: slack_openai_response/
+      Handler: app.lambda_handler
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Architectures:
+        - arm64
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
+        Cors:
+          AllowCredentials: false
+          AllowMethods:
+            - POST
+          AllowOrigins:
+            - "*"
+      Environment:
+        Variables:
+          SLACK_BOT_TOKEN: !Ref SlackBotToken
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+
+Outputs:
+  SlackOpenAIResponseFunctionArn:
+    Description: "ARN of Slack OpenAI Response Lambda Function"
+    Value: !GetAtt SlackOpenAIResponseFunction.Arn
+  SlackOpenAIResponseFunctionIamRole:
+    Description: "Implicit IAM Role created for Slack OpenAI Response function"
+    Value: !GetAtt MyLambdaExecutionRole.Arn
