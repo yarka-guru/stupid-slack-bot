@@ -107,6 +107,18 @@ config = {
 }
 ```
 
+### Handling Text Commands
+
+The application listens for specific text commands to trigger responses. For example, if a message contains "згенеруй зображення:", the bot will generate an image based on the provided description.
+
+### Image Generation
+
+The bot uses the OpenAI DALL-E model to generate images based on text descriptions. The generated images are then uploaded to Slack with a specified initial comment.
+
+### Vision and File Analysis
+
+The bot can analyze images and other file types uploaded to Slack. When a file is shared, the bot processes the file, determines its type, and then either analyzes the image content or processes other document types accordingly.
+
 ### Secrets Management
 
 Utilizes AWS Secrets Manager to securely store and retrieve the Slack Bot Token and OpenAI API Key.
