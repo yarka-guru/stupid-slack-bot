@@ -74,6 +74,38 @@ Set the following environment variables in the AWS Lambda configuration:
 
 Upon deployment, AWS SAM will provide an API endpoint URL. Configure this URL in your Slack application settings under **Event Subscriptions**.
 
+## Code Overview
+
+### Lambda Function: `lambda_handler`
+
+This function processes incoming Slack events, checks for new messages, and responds appropriately. It can generate text responses or images based on commands received.
+
+### Configuration File (`config.py`)
+
+A configuration file is used to manage dynamic settings for text commands, image analysis, image generation, and base prompts.
+
+```python
+config = {
+    "text_commands": {
+        "generate_image": "згенеруй зображення:",
+    },
+    "image_analysis": {
+        "model": "gpt-4o",
+        "max_tokens": 300,
+        "analysis_prompt": "Що на цьому зображенні?"
+    },
+    "image_generation": {
+        "initial_comment": "Ось згенероване зображення:",
+        "model": "dall-e-3",
+        "size": "1024x1024"
+    },
+    "base_prompt": (
+        "Уявіть, що ви AI-консультант з IT, який володіє дотепним гумором. "
+        "Наче ти бородатий сисадмін, зроби коротенький, смішний, трошки душнуватий, IT-орієнтований коментар, "
+        "використовуючи програмістські жарти, про: "
+    )
+}
+```
 
 ### Secrets Management
 
@@ -84,8 +116,6 @@ Utilizes AWS Secrets Manager to securely store and retrieve the Slack Bot Token 
 Uses the OpenAI Python SDK to generate responses or images based on the text received from Slack messages.
 
 ### Error Handling
-
-
 
 Comprehensive logging and error handling are implemented to manage and debug API calls and response generation.
 
