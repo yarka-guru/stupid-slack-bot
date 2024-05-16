@@ -75,50 +75,38 @@ def lambda_handler(event, _):
 
         if 'text' in slack_event:
             text_content = slack_event['text'].lower()
-            if config["text_commands"]["generate_image"] in text_content:
-                description = text_content.split(config["text_commands"]["generate_image"], 1)[1].strip()
-                image_url = openai_image_generation(description)
-                if image_url:
-                    post_image_to_slack(response_channel, image_url, thread_ts,
-                                        config["image_generation"]["initial_comment"])
-                    responded_threads[thread_ts] = True
-                    return {'statusCode': 200, 'body': 'Image created and sent to Slack'}
-            elif config["text_commands"]["generate_diffusion_image"] in text_content:
-                description = text_content.split(config["text_commands"]["generate_diffusion_image"], 1)[1].strip()
-                diffusion_image_url = generate_stability_image(description, stability_api_key,
-                                                               config["diffusion_image_generation"])
-                if diffusion_image_url:
-                    post_image_to_slack(response_channel, diffusion_image_url, thread_ts,
-                                        config["diffusion_image_generation"]["initial_comment"])
-                    responded_threads[thread_ts] = True
-                    return {'statusCode': 200, 'body': 'Diffusion image created and sent to Slack'}
-            elif config["text_commands"]["upscale_image"] in text_content:
-                description = text_content.split(config["text_commands"]["upscale_image"], 1)[1].strip()
-                upscale_image_url = generate_stability_image(description, stability_api_key,
-                                                             config["image_upscale"])
-                if upscale_image_url:
-                    post_image_to_slack(response_channel, upscale_image_url, thread_ts,
-                                        config["image_upscale"]["initial_comment"])
-                    responded_threads[thread_ts] = True
-                    return {'statusCode': 200, 'body': 'Upscaled image created and sent to Slack'}
-            elif config["text_commands"]["edit_image"] in text_content:
-                description = text_content.split(config["text_commands"]["edit_image"], 1)[1].strip()
-                edited_image_url = generate_stability_image(description, stability_api_key,
-                                                            config["image_edit"])
-                if edited_image_url:
-                    post_image_to_slack(response_channel, edited_image_url, thread_ts,
-                                        config["image_edit"]["initial_comment"])
-                    responded_threads[thread_ts] = True
-                    return {'statusCode': 200, 'body': 'Edited image created and sent to Slack'}
-            elif config["text_commands"]["image_to_video"] in text_content:
-                description = text_content.split(config["text_commands"]["image_to_video"], 1)[1].strip()
-                video_url = generate_stability_image(description, stability_api_key,
-                                                     config["image_to_video"])
-                if video_url:
-                    post_video_to_slack(response_channel, video_url, thread_ts,
-                                        config["image_to_video"]["initial_comment"])
-                    responded_threads[thread_ts] = True
-                    return {'statusCode': 200, 'body': 'Video created from image and sent to Slack'}
+            command = next((cmd for cmd in config["text_commands"].values() if cmd in text_content), None)
+            if command:
+                description = text_content.split(command, 1)[1].strip()
+                if command == config["text_commands"]["generate_image"]:
+                    image_url = openai_image_generation(description)
+                    if image_url:
+                        post_image_to_slack(response_channel, image_url, thread_ts,
+                                            config["image_generation"]["initial_comment"])
+                elif command == config["text_commands"]["generate_diffusion_image"]:
+                    diffusion_image_url = generate_stability_image(description, stability_api_key,
+                                                                   config["diffusion_image_generation"])
+                    if diffusion_image_url:
+                        post_image_to_slack(response_channel, diffusion_image_url, thread_ts,
+                                            config["diffusion_image_generation"]["initial_comment"])
+                elif command == config["text_commands"]["upscale_image"]:
+                    upscale_image_url = generate_stability_image(description, stability_api_key,
+                                                                 config["image_upscale"])
+                    if upscale_image_url:
+                        post_image_to_slack(response_channel, upscale_image_url, thread_ts,
+                                            config["image_upscale"]["initial_comment"])
+                elif command == config["text_commands"]["edit_image"]:
+                    edited_image_url = generate_stability_image(description, stability_api_key, config["image_edit"])
+                    if edited_image_url:
+                        post_image_to_slack(response_channel, edited_image_url, thread_ts,
+                                            config["image_edit"]["initial_comment"])
+                elif command == config["text_commands"]["image_to_video"]:
+                    video_url = generate_stability_image(description, stability_api_key, config["image_to_video"])
+                    if video_url:
+                        post_video_to_slack(response_channel, video_url, thread_ts,
+                                            config["image_to_video"]["initial_comment"])
+                responded_threads[thread_ts] = True
+                return {'statusCode': 200, 'body': 'Command processed and responded to Slack'}
             else:
                 openai_response = generate_openai_response(text_content)
                 post_message_to_slack(response_channel, openai_response, thread_ts)
