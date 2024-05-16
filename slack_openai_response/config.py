@@ -1,10 +1,7 @@
 config = {
     "text_commands": {
         "generate_image": "згенеруй зображення:",
-        "generate_diffusion_image": "generate image:",
-        "upscale_image": "upscale image:",
-        "edit_image": "edit image:",
-        "image_to_video": "create video:"
+        "generate_diffusion_image": "generate image:"
     },
     "image_analysis": {
         "model": "gpt-4o",
@@ -29,26 +26,6 @@ config = {
         "samples": 1,
         "steps": 50,
         "output_format": "jpeg"
-    },
-    "image_upscale": {
-        "initial_comment": "Ось поліпшене зображення:",
-        "endpoint": "https://api.stability.ai/v2beta/stable-image/upscale/creative",
-        "prompt": "Provide your prompt here",
-        "output_format": "webp"
-    },
-    "image_edit": {
-        "initial_comment": "Ось відредаговане зображення:",
-        "endpoint": "https://api.stability.ai/v2beta/stable-image/edit/inpaint",
-        "prompt": "Provide your prompt here",
-        "mask": "path/to/your/mask.png",
-        "output_format": "webp"
-    },
-    "image_to_video": {
-        "initial_comment": "Ось відео, створене з зображення:",
-        "endpoint": "https://api.stability.ai/v2beta/image-to-video",
-        "seed": 0,
-        "cfg_scale": 1.8,
-        "motion_bucket_id": 127
     },
     "base_prompt": (
         "Уявіть, що ви AI-консультант з IT, тебе звати BugFixer3000, який володіє дотепним гумором. "

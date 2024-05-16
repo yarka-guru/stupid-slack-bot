@@ -95,10 +95,6 @@ The bot uses the OpenAI DALL-E model and Stability AI's sd3 model to generate im
 
 The bot can analyze images and other file types uploaded to Slack. When a file is shared, the bot processes the file, determines its type, and then either analyzes the image content or processes other document types accordingly.
 
-### Image Upscale, Edit, and Image-to-Video Conversion
-
-The bot uses Stability AI to upscale, edit images, and convert images to video based on specific commands.
-
 ### Secrets Management
 
 Utilizes AWS Secrets Manager to securely store and retrieve the Slack Bot Token, OpenAI API Key, and Stability API Key.
@@ -122,21 +118,6 @@ Comprehensive logging and error handling are implemented to manage and debug API
 
 - **Command**: створи зображення: [description]
 - **Example**: створи зображення: мальовничий захід сонця на пляжі
-
-#### Upscale Image
-
-- **Command**: поліпши зображення: [description]
-- **Example**: поліпши зображення: це зображення має низьку роздільну здатність, зроби його чіткішим
-
-#### Edit Image
-
-- **Command**: відредагуй зображення: [description]
-- **Example**: відредагуй зображення: додай до цього зображення веселку на задньому плані
-
-#### Image to Video
-
-- **Command**: створи відео: [description]
-- **Example**: створи відео: зроби коротке відео з цим зображенням, яке змінюється від дня до ночі
 
 ## Additional Notes
 
