@@ -90,18 +90,17 @@ def lambda_handler(event, _):
                         post_image_to_slack(response_channel, diffusion_image_url, thread_ts,
                                             config["diffusion_image_generation"]["initial_comment"])
                 elif command == config["text_commands"]["upscale_image"]:
-                    upscale_image_url = generate_stability_image(description, stability_api_key,
-                                                                 config["image_upscale"])
+                    upscale_image_url = upscale_stability_image(description, stability_api_key, config["image_upscale"])
                     if upscale_image_url:
                         post_image_to_slack(response_channel, upscale_image_url, thread_ts,
                                             config["image_upscale"]["initial_comment"])
                 elif command == config["text_commands"]["edit_image"]:
-                    edited_image_url = generate_stability_image(description, stability_api_key, config["image_edit"])
+                    edited_image_url = edit_stability_image(description, stability_api_key, config["image_edit"])
                     if edited_image_url:
                         post_image_to_slack(response_channel, edited_image_url, thread_ts,
                                             config["image_edit"]["initial_comment"])
                 elif command == config["text_commands"]["image_to_video"]:
-                    video_url = generate_stability_image(description, stability_api_key, config["image_to_video"])
+                    video_url = generate_video(description, stability_api_key, config["image_to_video"])
                     if video_url:
                         post_video_to_slack(response_channel, video_url, thread_ts,
                                             config["image_to_video"]["initial_comment"])
@@ -256,32 +255,95 @@ def generate_stability_image(description, api_key, generation_config):
     try:
         response = requests.post(
             generation_config["endpoint"],
-            json={
-                "text_prompts": [{"text": description}],
-                "cfg_scale": generation_config["cfg_scale"],
-                "clip_guidance_preset": generation_config["clip_guidance_preset"],
-                "height": generation_config["height"],
-                "width": generation_config["width"],
-                "samples": generation_config["samples"],
-                "steps": generation_config["steps"],
-                "model": generation_config["model"]
-            },
             headers={
                 "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
+                "Accept": "image/*"
+            },
+            files={"none": ''},
+            data={
+                "prompt": description,
+                "output_format": generation_config["output_format"]
             }
         )
         response.raise_for_status()
-        image_url = response.json()['artifacts'][0]['base64']
-        return f"data:image/png;base64,{image_url}"
+        return response.content
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to generate image with Stability AI: {str(e)}")
         return None
 
 
-def post_image_to_slack(channel, image_url, thread_ts, initial_comment):
+def upscale_stability_image(description, api_key, generation_config):
     try:
-        image_data = base64.b64decode(image_url.split(",")[1])
+        response = requests.post(
+            generation_config["endpoint"],
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Accept": "image/*"
+            },
+            files={
+                "image": open(description, "rb")
+            },
+            data={
+                "prompt": generation_config["prompt"],
+                "output_format": generation_config["output_format"]
+            }
+        )
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to upscale image with Stability AI: {str(e)}")
+        return None
+
+
+def edit_stability_image(description, api_key, generation_config):
+    try:
+        response = requests.post(
+            generation_config["endpoint"],
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Accept": "image/*"
+            },
+            files={
+                "image": open(description, "rb"),
+                "mask": open(generation_config["mask"], "rb")
+            },
+            data={
+                "prompt": generation_config["prompt"],
+                "output_format": generation_config["output_format"]
+            }
+        )
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to edit image with Stability AI: {str(e)}")
+        return None
+
+
+def generate_video(description, api_key, generation_config):
+    try:
+        response = requests.post(
+            generation_config["endpoint"],
+            headers={
+                "Authorization": f"Bearer {api_key}"
+            },
+            files={
+                "image": open(description, "rb")
+            },
+            data={
+                "seed": generation_config["seed"],
+                "cfg_scale": generation_config["cfg_scale"],
+                "motion_bucket_id": generation_config["motion_bucket_id"]
+            }
+        )
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to generate video with Stability AI: {str(e)}")
+        return None
+
+
+def post_image_to_slack(channel, image_data, thread_ts, initial_comment):
+    try:
         with open('/tmp/generated_image.png', 'wb') as f:
             f.write(image_data)
 
@@ -297,9 +359,8 @@ def post_image_to_slack(channel, image_url, thread_ts, initial_comment):
         logger.error(f"Slack API Error: {str(e)}")
 
 
-def post_video_to_slack(channel, video_url, thread_ts, initial_comment):
+def post_video_to_slack(channel, video_data, thread_ts, initial_comment):
     try:
-        video_data = base64.b64decode(video_url.split(",")[1])
         with open('/tmp/generated_video.mp4', 'wb') as f:
             f.write(video_data)
 
