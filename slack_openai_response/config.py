@@ -1,10 +1,10 @@
 config = {
     "text_commands": {
         "generate_image": "згенеруй зображення:",
-        "generate_diffusion_image": "створи зображення:",
-        "upscale_image": "поліпши зображення:",
-        "edit_image": "відредагуй зображення:",
-        "image_to_video": "створи відео:"
+        "generate_diffusion_image": "generate image:",
+        "upscale_image": "upscale image:",
+        "edit_image": "edit image:",
+        "image_to_video": "create video:"
     },
     "image_analysis": {
         "model": "gpt-4o",
