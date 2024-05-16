@@ -107,6 +107,10 @@ Uses the OpenAI Python SDK and Stability AI API to generate responses or images 
 
 Comprehensive logging and error handling are implemented to manage and debug API calls and response generation.
 
+### Stop Word Functionality
+
+The bot includes a stop word functionality to prevent further responses in a thread if a specific word or phrase is detected. This allows users to stop the bot from responding in a particular thread by using the configured stop word.
+
 ### Example Prompts for Each Function
 
 #### Generate Image (OpenAI DALL-E 3)
