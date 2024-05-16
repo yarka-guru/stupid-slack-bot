@@ -61,7 +61,7 @@ def lambda_handler(event, _):
             return {'statusCode': 200, 'body': 'Event ignored'}
 
         response_channel = slack_event.get('channel')
-        thread_ts = slack_event.get('ts')
+        thread_ts = slack_event.get('thread_ts') or slack_event.get('ts')
 
         if thread_ts in stopped_threads:
             logger.info(f"Thread stopped: {thread_ts}")
