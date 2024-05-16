@@ -267,7 +267,7 @@ def openai_image_generation(description):
 def generate_stability_image(description, api_key, generation_config):
     try:
         response = requests.post(
-            "https://api.stability.ai/v2beta/stable-diffusion/generate",
+            generation_config["endpoint"],
             json={
                 "text_prompts": [{"text": description}],
                 "cfg_scale": generation_config["cfg_scale"],

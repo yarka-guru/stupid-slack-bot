@@ -11,8 +11,7 @@ config = {
         "max_tokens": 300,
         "analysis_prompt": "Уявіть, що ви AI-консультант з IT, тебе звати BugFixer3000, який володіє дотепним гумором. "
                            "Наче ти бородатий сисадмін, зроби коротенький, смішний, трошки душнуватий, "
-                           "IT-орієнтований коментар,"
-                           "використовуючи програмістські жарти, прокоментуй, що ти бачиш"
+                           "IT-орієнтований коментар, використовуючи програмістські жарти, прокоментуй, що ти бачиш"
     },
     "image_generation": {
         "initial_comment": "Ось згенероване DALL-E 3 зображення:",
@@ -21,8 +20,8 @@ config = {
     },
     "diffusion_image_generation": {
         "initial_comment": "Ось згенероване Stable Diffusion зображення:",
+        "endpoint": "https://api.stability.ai/v2beta/stable-diffusion/generate",
         "model": "sd3",
-        "size": "1024x1024",
         "cfg_scale": 7,
         "clip_guidance_preset": "FAST_BLUE",
         "height": 512,
@@ -32,8 +31,8 @@ config = {
     },
     "image_upscale": {
         "initial_comment": "Ось поліпшене зображення:",
+        "endpoint": "https://api.stability.ai/v2beta/stable-diffusion/generate",
         "model": "sd-upscale",
-        "size": "1024x1024",
         "cfg_scale": 7,
         "clip_guidance_preset": "FAST_BLUE",
         "height": 512,
@@ -43,8 +42,8 @@ config = {
     },
     "image_edit": {
         "initial_comment": "Ось відредаговане зображення:",
+        "endpoint": "https://api.stability.ai/v2beta/stable-diffusion/generate",
         "model": "sd-edit",
-        "size": "1024x1024",
         "cfg_scale": 7,
         "clip_guidance_preset": "FAST_BLUE",
         "height": 512,
@@ -54,8 +53,8 @@ config = {
     },
     "image_to_video": {
         "initial_comment": "Ось відео, створене з зображення:",
+        "endpoint": "https://api.stability.ai/v2beta/stable-diffusion/generate",
         "model": "sd-image-to-video",
-        "size": "1024x1024",
         "cfg_scale": 7,
         "clip_guidance_preset": "FAST_BLUE",
         "height": 512,
