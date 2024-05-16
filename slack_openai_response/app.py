@@ -5,6 +5,7 @@ import logging
 import requests
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+import openai
 from openai import OpenAI
 import boto3
 from botocore.exceptions import ClientError
@@ -35,6 +36,7 @@ bot_user_id = slack_client.auth_test()["user_id"]
 client = OpenAI(api_key=openai_api_key)
 
 responded_threads = {}
+stopped_threads = set()
 
 
 def lambda_handler(event, _):
@@ -61,6 +63,10 @@ def lambda_handler(event, _):
         response_channel = slack_event.get('channel')
         thread_ts = slack_event.get('ts')
 
+        if thread_ts in stopped_threads:
+            logger.info(f"Thread stopped: {thread_ts}")
+            return {'statusCode': 200, 'body': 'Thread stopped'}
+
         if thread_ts in responded_threads:
             logger.info("Thread already responded to: %s", thread_ts)
             return {'statusCode': 200, 'body': 'Thread already responded to'}
@@ -75,6 +81,12 @@ def lambda_handler(event, _):
 
         if 'text' in slack_event:
             text_content = slack_event['text'].lower()
+
+            if config["stop_word"].lower() in text_content:
+                stopped_threads.add(thread_ts)
+                logger.info(f"Stop word detected, stopping thread: {thread_ts}")
+                return {'statusCode': 200, 'body': 'Thread stopped due to stop word'}
+
             command = next((cmd for cmd in config["text_commands"].values() if cmd in text_content), None)
             if command:
                 description = text_content.split(command, 1)[1].strip()
@@ -231,9 +243,25 @@ def openai_image_generation(description):
                                           model=config["image_generation"]["model"])
         image_url = response.data[0].url
         return image_url
-    except Exception as e:
+    except openai.BadRequestError as e:
+        logger.error(f"Error 400: {e}")
+    except openai.AuthenticationError as e:
+        logger.error(f"Error 401: {e}")
+    except openai.PermissionDeniedError as e:
+        logger.error(f"Error 403: {e}")
+    except openai.NotFoundError as e:
+        logger.error(f"Error 404: {e}")
+    except openai.UnprocessableEntityError as e:
+        logger.error(f"Error 422: {e}")
+    except openai.RateLimitError as e:
+        logger.error(f"Error 429: {e}")
+    except openai.InternalServerError as e:
+        logger.error(f"Error >=500: {e}")
+    except openai.APIConnectionError as e:
+        logger.error(f"API connection error: {e}")
+    except openai.OpenAIError as e:
         logger.error(f"Failed to generate image with OpenAI: {str(e)}")
-        return None
+    return None
 
 
 def generate_stability_image(description, api_key, generation_config):
@@ -288,9 +316,25 @@ def generate_openai_response(content):
                                                       {"role": "user", "content": content}
                                                   ])
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"Failed to interact with OpenAI: {str(e)}")
-        return "Failed to generate response."
+    except openai.BadRequestError as e:
+        logger.error(f"Error 400: {e}")
+    except openai.AuthenticationError as e:
+        logger.error(f"Error 401: {e}")
+    except openai.PermissionDeniedError as e:
+        logger.error(f"Error 403: {e}")
+    except openai.NotFoundError as e:
+        logger.error(f"Error 404: {e}")
+    except openai.UnprocessableEntityError as e:
+        logger.error(f"Error 422: {e}")
+    except openai.RateLimitError as e:
+        logger.error(f"Error 429: {e}")
+    except openai.InternalServerError as e:
+        logger.error(f"Error >=500: {e}")
+    except openai.APIConnectionError as e:
+        logger.error(f"API connection error: {e}")
+    except openai.OpenAIError as e:
+        logger.error(f"Failed to generate response with OpenAI: {str(e)}")
+    return "Failed to generate response."
 
 
 def post_message_to_slack(channel, message, thread_ts):
