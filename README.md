@@ -120,8 +120,8 @@ The bot includes a stop word functionality to prevent further responses in a thr
 
 #### Generate Diffusion Image (Stability AI sd3)
 
-- **Command**: створи зображення: [description]
-- **Example**: створи зображення: мальовничий захід сонця на пляжі
+- **Command**: generate image: [description]
+- **Example**: generate image: picturesque sunset on the beach
 
 ## Additional Notes
 
