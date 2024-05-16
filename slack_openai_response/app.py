@@ -257,19 +257,24 @@ def generate_stability_image(description, api_key, generation_config):
         return None
 
 
-def post_image_to_slack(channel, image_data, thread_ts, initial_comment):
+def post_image_to_slack(channel, image_url, thread_ts, initial_comment):
     try:
-        with open('/tmp/generated_image.png', 'wb') as f:
-            f.write(image_data)
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            image_data = response.content
+            with open('/tmp/generated_image.png', 'wb') as f:
+                f.write(image_data)
 
-        response = slack_client.files_upload_v2(
-            channel=channel,
-            initial_comment=initial_comment,
-            file='/tmp/generated_image.png',
-            filename='generated_image.png',
-            thread_ts=thread_ts
-        )
-        logger.info(f"Posted image to Slack: {response['file']['permalink']}")
+            response = slack_client.files_upload_v2(
+                channel=channel,
+                initial_comment=initial_comment,
+                file='/tmp/generated_image.png',
+                filename='generated_image.png',
+                thread_ts=thread_ts
+            )
+            logger.info(f"Posted image to Slack: {response['file']['permalink']}")
+        else:
+            logger.error(f"Failed to download the image from URL: {image_url}")
     except SlackApiError as e:
         logger.error(f"Slack API Error: {str(e)}")
 
