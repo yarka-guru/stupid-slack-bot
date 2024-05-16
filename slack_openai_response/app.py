@@ -28,6 +28,7 @@ def get_secret(secret_name):
 
 slack_bot_token = get_secret(os.getenv('SLACK_BOT_TOKEN_SECRET_NAME'))['SLACK_BOT_TOKEN']
 openai_api_key = get_secret(os.getenv('OPENAI_API_KEY_SECRET_NAME'))['OPENAI_API_KEY']
+stability_api_key = get_secret(os.getenv('STABILITY_API_KEY_SECRET_NAME'))['STABILITY_API_KEY']
 
 slack_client = WebClient(token=slack_bot_token)
 bot_user_id = slack_client.auth_test()["user_id"]
@@ -82,6 +83,41 @@ def lambda_handler(event, _):
                                         config["image_generation"]["initial_comment"])
                     responded_threads[thread_ts] = True
                     return {'statusCode': 200, 'body': 'Image created and sent to Slack'}
+            elif config["text_commands"]["generate_diffusion_image"] in text_content.lower():
+                description = text_content.split(config["text_commands"]["generate_diffusion_image"], 1)[1].strip()
+                diffusion_image_url = stability_image_generation(description, stability_api_key,
+                                                                 config["diffusion_image_generation"]["model"])
+                if diffusion_image_url:
+                    post_image_to_slack(response_channel, diffusion_image_url, thread_ts,
+                                        config["diffusion_image_generation"]["initial_comment"])
+                    responded_threads[thread_ts] = True
+                    return {'statusCode': 200, 'body': 'Diffusion image created and sent to Slack'}
+            elif config["text_commands"]["upscale_image"] in text_content.lower():
+                description = text_content.split(config["text_commands"]["upscale_image"], 1)[1].strip()
+                upscale_image_url = stability_image_generation(description, stability_api_key,
+                                                               config["image_upscale"]["model"])
+                if upscale_image_url:
+                    post_image_to_slack(response_channel, upscale_image_url, thread_ts,
+                                        config["image_upscale"]["initial_comment"])
+                    responded_threads[thread_ts] = True
+                    return {'statusCode': 200, 'body': 'Upscaled image created and sent to Slack'}
+            elif config["text_commands"]["edit_image"] in text_content.lower():
+                description = text_content.split(config["text_commands"]["edit_image"], 1)[1].strip()
+                edited_image_url = stability_image_generation(description, stability_api_key,
+                                                              config["image_edit"]["model"])
+                if edited_image_url:
+                    post_image_to_slack(response_channel, edited_image_url, thread_ts,
+                                        config["image_edit"]["initial_comment"])
+                    responded_threads[thread_ts] = True
+                    return {'statusCode': 200, 'body': 'Edited image created and sent to Slack'}
+            elif config["text_commands"]["image_to_video"] in text_content.lower():
+                description = text_content.split(config["text_commands"]["image_to_video"], 1)[1].strip()
+                video_url = stability_image_to_video(description, stability_api_key)
+                if video_url:
+                    post_video_to_slack(response_channel, video_url, thread_ts,
+                                        config["image_to_video"]["initial_comment"])
+                    responded_threads[thread_ts] = True
+                    return {'statusCode': 200, 'body': 'Video created from image and sent to Slack'}
             else:
                 openai_response = generate_openai_response(text_content)
                 post_message_to_slack(response_channel, openai_response, thread_ts)
@@ -227,6 +263,41 @@ def openai_image_generation(description):
         return None
 
 
+def stability_image_generation(description, stability_api_key, model):
+    try:
+        response = requests.post(
+            f"https://api.stability.ai/v2beta/stable-image/generate/{model}",
+            json={
+                "prompt": description,
+                "size": config["diffusion_image_generation"]["size"],
+                "model": model
+            },
+            headers={"Authorization": f"Bearer {stability_api_key}"}
+        )
+        image_url = response.json().get('data', [{}])[0].get('url', None)
+        return image_url
+    except Exception as e:
+        logger.error(f"Failed to generate image with Stability AI: {str(e)}")
+        return None
+
+
+def stability_image_to_video(description, stability_api_key):
+    try:
+        response = requests.post(
+            "https://api.stability.ai/v2beta/stable-image/generate/sd-image-to-video",
+            json={
+                "prompt": description,
+                "size": config["image_to_video"]["size"]
+            },
+            headers={"Authorization": f"Bearer {stability_api_key}"}
+        )
+        video_url = response.json().get('data', [{}])[0].get('url', None)
+        return video_url
+    except Exception as e:
+        logger.error(f"Failed to generate video with Stability AI: {str(e)}")
+        return None
+
+
 def post_image_to_slack(channel, image_url, thread_ts, initial_comment):
     try:
         response = requests.get(image_url)
@@ -244,6 +315,27 @@ def post_image_to_slack(channel, image_url, thread_ts, initial_comment):
             logger.info(f"Posted image to Slack: {response['file']['permalink']}")
         else:
             logger.error("Failed to download the image")
+    except SlackApiError as e:
+        logger.error(f"Slack API Error: {str(e)}")
+
+
+def post_video_to_slack(channel, video_url, thread_ts, initial_comment):
+    try:
+        response = requests.get(video_url)
+        if response.status_code == 200:
+            with open('/tmp/generated_video.mp4', 'wb') as f:
+                f.write(response.content)
+
+            response = slack_client.files_upload_v2(
+                channel=channel,
+                initial_comment=initial_comment,
+                file='/tmp/generated_video.mp4',
+                filename='generated_video.mp4',
+                thread_ts=thread_ts
+            )
+            logger.info(f"Posted video to Slack: {response['file']['permalink']}")
+        else:
+            logger.error("Failed to download the video")
     except SlackApiError as e:
         logger.error(f"Slack API Error: {str(e)}")
 

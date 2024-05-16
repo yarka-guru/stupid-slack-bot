@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion : '2010-09-09'
 Transform : AWS::Serverless-2016-10-31
 Description : >
-  Serverless Slack App with OpenAI Integration
+  Serverless Slack App with OpenAI and Stability AI Integration
 
 Globals :
   Function :
@@ -17,6 +17,9 @@ Parameters :
   OpenAIApiKeySecretName :
     Type : String
     Description : Name of the Secrets Manager secret containing the OpenAI API Key
+  StabilityApiKeySecretName :
+    Type : String
+    Description : Name of the Secrets Manager secret containing the Stability API Key
 
 Resources :
   MyLambdaExecutionRole :
@@ -67,6 +70,7 @@ Resources :
         Variables :
           SLACK_BOT_TOKEN_SECRET_NAME : !Ref SlackBotTokenSecretName
           OPENAI_API_KEY_SECRET_NAME : !Ref OpenAIApiKeySecretName
+          STABILITY_API_KEY_SECRET_NAME : !Ref StabilityApiKeySecretName
 
 Outputs :
   SlackOpenAIResponseFunctionArn :

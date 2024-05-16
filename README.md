@@ -1,24 +1,26 @@
-# Serverless Slack App with OpenAI Integration
+# Serverless Slack App with OpenAI and Stability AI Integration
 
 ## Description
 
-This document details the setup and deployment of a serverless Slack application that integrates with OpenAI to process and respond to Slack messages. The app utilizes AWS Lambda, AWS Secrets Manager, and the Slack and OpenAI SDKs.
+This document details the setup and deployment of a serverless Slack application that integrates with OpenAI and Stability AI to process and respond to Slack messages. The app utilizes AWS Lambda, AWS Secrets Manager, and the Slack, OpenAI, and Stability AI SDKs.
 
 ## Requirements
 
 - AWS Account
 - Slack Account
 - OpenAI Account
+- Stability AI Account
 
 ## Installation Steps
 
 ### Step 1: Create AWS Secrets
 
-Store Slack Bot Token and OpenAI API Key securely in AWS Secrets Manager:
+Store Slack Bot Token, OpenAI API Key, and Stability AI API Key securely in AWS Secrets Manager:
 
 ```bash
 aws secretsmanager create-secret --name SlackBotToken --secret-string '{"SLACK_BOT_TOKEN":"your_slack_bot_token"}'
 aws secretsmanager create-secret --name OpenAIApiKey --secret-string '{"OPENAI_API_KEY":"your_openai_api_key"}'
+aws secretsmanager create-secret --name StabilityApiKey --secret-string '{"STABILITY_API_KEY":"your_stability_api_key"}'
 ```
 
 ### Step 2: Slack App and Permissions
@@ -61,7 +63,7 @@ sam build
 sam deploy --guided
 ```
 
-Follow the prompts to configure your stack name, AWS region, and parameter overrides for `SlackBotTokenSecretName` and `OpenAIApiKeySecretName`.
+Follow the prompts to configure your stack name, AWS region, and parameter overrides for `SlackBotTokenSecretName`, `OpenAIApiKeySecretName`, and `StabilityApiKeySecretName`.
 
 ### Step 4: Connect Slack App to AWS
 
@@ -69,6 +71,7 @@ Set the following environment variables in the AWS Lambda configuration:
 
 - `SLACK_BOT_TOKEN_SECRET_NAME` with the name of the secret containing the Slack Bot API Token.
 - `OPENAI_API_KEY_SECRET_NAME` with the name of the secret containing the OpenAI API Key.
+- `STABILITY_API_KEY_SECRET_NAME` with the name of the secret containing the Stability API Key.
 
 ### Step 5: API Endpoints
 
@@ -80,61 +83,61 @@ Upon deployment, AWS SAM will provide an API endpoint URL. Configure this URL in
 
 This function processes incoming Slack events, checks for new messages, and responds appropriately. It can generate text responses or images based on commands received.
 
-### Configuration File (`config.py`)
-
-A configuration file is used to manage dynamic settings for text commands, image analysis, image generation, and base prompts.
-
-```python
-config = {
-    "text_commands": {
-        "generate_image": "згенеруй зображення:",
-    },
-    "image_analysis": {
-        "model": "gpt-4o",
-        "max_tokens": 300,
-        "analysis_prompt": "Що на цьому зображенні?"
-    },
-    "image_generation": {
-        "initial_comment": "Ось згенероване зображення:",
-        "model": "dall-e-3",
-        "size": "1024x1024"
-    },
-    "base_prompt": (
-        "Уявіть, що ви AI-консультант з IT, який володіє дотепним гумором. "
-        "Наче ти бородатий сисадмін, зроби коротенький, смішний, трошки душнуватий, IT-орієнтований коментар, "
-        "використовуючи програмістські жарти, про: "
-    )
-}
-```
-
 ### Handling Text Commands
 
 The application listens for specific text commands to trigger responses. For example, if a message contains "згенеруй зображення:", the bot will generate an image based on the provided description.
 
 ### Image Generation
 
-The bot uses the OpenAI DALL-E model to generate images based on text descriptions. The generated images are then uploaded to Slack with a specified initial comment.
+The bot uses the OpenAI DALL-E model and Stability AI's sd3 model to generate images based on text descriptions. The generated images are then uploaded to Slack with a specified initial comment.
 
 ### Vision and File Analysis
 
 The bot can analyze images and other file types uploaded to Slack. When a file is shared, the bot processes the file, determines its type, and then either analyzes the image content or processes other document types accordingly.
 
+### Image Upscale, Edit, and Image-to-Video Conversion
+
+The bot uses Stability AI to upscale, edit images, and convert images to video based on specific commands.
+
 ### Secrets Management
 
-Utilizes AWS Secrets Manager to securely store and retrieve the Slack Bot Token and OpenAI API Key.
+Utilizes AWS Secrets Manager to securely store and retrieve the Slack Bot Token, OpenAI API Key, and Stability API Key.
 
-### OpenAI Integration
+### OpenAI and Stability AI Integration
 
-Uses the OpenAI Python SDK to generate responses or images based on the text received from Slack messages.
+Uses the OpenAI Python SDK and Stability AI API to generate responses or images based on the text received from Slack messages.
 
 ### Error Handling
 
 Comprehensive logging and error handling are implemented to manage and debug API calls and response generation.
 
+### Example Prompts for Each Function
+
+Generate Image (OpenAI DALL-E 3)
+
+Command: згенеруй зображення: [description]
+Example: згенеруй зображення: сонячний день у парку з дітьми, що граються
+Generate Diffusion Image (Stability AI sd3)
+
+Command: створи зображення: [description]
+Example: створи зображення: мальовничий захід сонця на пляжі
+Upscale Image
+
+Command: поліпши зображення: [description]
+Example: поліпши зображення: це зображення має низьку роздільну здатність, зроби його чіткішим
+Edit Image
+
+Command: відредагуй зображення: [description]
+Example: відредагуй зображення: додай до цього зображення веселку на задньому плані
+Image to Video
+
+Command: створи відео: [description]
+Example: створи відео: зроби коротке відео з цим зображенням, яке змінюється від дня до ночі
+
 ## Additional Notes
 
 - Ensure that your AWS IAM roles and policies are correctly set up to allow Lambda functions to access Secrets Manager and post logs.
-- Update your Slack and OpenAI API keys periodically for security.
+- Update your Slack, OpenAI, and Stability API keys periodically for security.
 - For a detailed guide on creating a Slack app and adding permissions, refer to the [Slack API documentation](https://api.slack.com/apps).
 
-By following these steps, your Serverless Slack App with OpenAI integration should be fully functional, allowing interactive, AI-powered responses within your Slack channels.
+By following these steps, your Serverless Slack App with OpenAI and Stability AI integration should be fully functional, allowing interactive, AI-powered responses within your Slack channels.
