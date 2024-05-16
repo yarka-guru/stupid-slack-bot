@@ -74,8 +74,8 @@ def lambda_handler(event, _):
             return {'statusCode': 200, 'body': 'File event processed'}
 
         if 'text' in slack_event:
-            text_content = slack_event['text']
-            if config["text_commands"]["generate_image"] in text_content.lower():
+            text_content = slack_event['text'].lower()
+            if config["text_commands"]["generate_image"] in text_content:
                 description = text_content.split(config["text_commands"]["generate_image"], 1)[1].strip()
                 image_url = openai_image_generation(description)
                 if image_url:
@@ -83,7 +83,7 @@ def lambda_handler(event, _):
                                         config["image_generation"]["initial_comment"])
                     responded_threads[thread_ts] = True
                     return {'statusCode': 200, 'body': 'Image created and sent to Slack'}
-            elif config["text_commands"]["generate_diffusion_image"] in text_content.lower():
+            elif config["text_commands"]["generate_diffusion_image"] in text_content:
                 description = text_content.split(config["text_commands"]["generate_diffusion_image"], 1)[1].strip()
                 diffusion_image_url = stability_image_generation(description, stability_api_key,
                                                                  config["diffusion_image_generation"]["model"])
@@ -92,7 +92,7 @@ def lambda_handler(event, _):
                                         config["diffusion_image_generation"]["initial_comment"])
                     responded_threads[thread_ts] = True
                     return {'statusCode': 200, 'body': 'Diffusion image created and sent to Slack'}
-            elif config["text_commands"]["upscale_image"] in text_content.lower():
+            elif config["text_commands"]["upscale_image"] in text_content:
                 description = text_content.split(config["text_commands"]["upscale_image"], 1)[1].strip()
                 upscale_image_url = stability_image_generation(description, stability_api_key,
                                                                config["image_upscale"]["model"])
@@ -101,7 +101,7 @@ def lambda_handler(event, _):
                                         config["image_upscale"]["initial_comment"])
                     responded_threads[thread_ts] = True
                     return {'statusCode': 200, 'body': 'Upscaled image created and sent to Slack'}
-            elif config["text_commands"]["edit_image"] in text_content.lower():
+            elif config["text_commands"]["edit_image"] in text_content:
                 description = text_content.split(config["text_commands"]["edit_image"], 1)[1].strip()
                 edited_image_url = stability_image_generation(description, stability_api_key,
                                                               config["image_edit"]["model"])
@@ -110,7 +110,7 @@ def lambda_handler(event, _):
                                         config["image_edit"]["initial_comment"])
                     responded_threads[thread_ts] = True
                     return {'statusCode': 200, 'body': 'Edited image created and sent to Slack'}
-            elif config["text_commands"]["image_to_video"] in text_content.lower():
+            elif config["text_commands"]["image_to_video"] in text_content:
                 description = text_content.split(config["text_commands"]["image_to_video"], 1)[1].strip()
                 video_url = stability_image_to_video(description, stability_api_key)
                 if video_url:
