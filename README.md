@@ -113,26 +113,30 @@ Comprehensive logging and error handling are implemented to manage and debug API
 
 ### Example Prompts for Each Function
 
-Generate Image (OpenAI DALL-E 3)
+#### Generate Image (OpenAI DALL-E 3)
 
-Command: згенеруй зображення: [description]
-Example: згенеруй зображення: сонячний день у парку з дітьми, що граються
-Generate Diffusion Image (Stability AI sd3)
+- **Command**: згенеруй зображення: [description]
+- **Example**: згенеруй зображення: сонячний день у парку з дітьми, що граються
 
-Command: створи зображення: [description]
-Example: створи зображення: мальовничий захід сонця на пляжі
-Upscale Image
+#### Generate Diffusion Image (Stability AI sd3)
 
-Command: поліпши зображення: [description]
-Example: поліпши зображення: це зображення має низьку роздільну здатність, зроби його чіткішим
-Edit Image
+- **Command**: створи зображення: [description]
+- **Example**: створи зображення: мальовничий захід сонця на пляжі
 
-Command: відредагуй зображення: [description]
-Example: відредагуй зображення: додай до цього зображення веселку на задньому плані
-Image to Video
+#### Upscale Image
 
-Command: створи відео: [description]
-Example: створи відео: зроби коротке відео з цим зображенням, яке змінюється від дня до ночі
+- **Command**: поліпши зображення: [description]
+- **Example**: поліпши зображення: це зображення має низьку роздільну здатність, зроби його чіткішим
+
+#### Edit Image
+
+- **Command**: відредагуй зображення: [description]
+- **Example**: відредагуй зображення: додай до цього зображення веселку на задньому плані
+
+#### Image to Video
+
+- **Command**: створи відео: [description]
+- **Example**: створи відео: зроби коротке відео з цим зображенням, яке змінюється від дня до ночі
 
 ## Additional Notes
 
