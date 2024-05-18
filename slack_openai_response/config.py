@@ -20,13 +20,13 @@ config = {
     "diffusion_image_generation": {
         "initial_comment": "Ось згенероване Stable Diffusion зображення:",
         "endpoint": "https://api.stability.ai/v2beta/stable-image/generate/sd3",
-        "model": "sd3",
+        "model": "sd3-turbo",
         "cfg_scale": 7,
         "clip_guidance_preset": "FAST_BLUE",
         "height": 512,
         "width": 512,
         "samples": 1,
-        "steps": 50,
+        "steps": 150,
         "output_format": "jpeg"
     },
     "base_prompt": (
