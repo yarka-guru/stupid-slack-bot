@@ -84,16 +84,16 @@ def lambda_handler(event, _):
             if command:
                 description = text_content.split(command, 1)[1].strip()
                 if command == config["text_commands"]["generate_image"]:
-                    image_url = openai_image_generation(description)
-                    if image_url:
-                        post_image_to_slack(response_channel, image_url, thread_ts,
-                                            config["image_generation"]["initial_comment"])
+                    image_data = openai_image_generation(description)
+                    if image_data:
+                        post_image_file_to_slack(response_channel, image_data, thread_ts,
+                                                 config["image_generation"]["initial_comment"])
                 elif command == config["text_commands"]["generate_diffusion_image"]:
-                    diffusion_image_url = generate_stability_image(description, stability_api_key,
-                                                                   config["diffusion_image_generation"])
-                    if diffusion_image_url:
-                        post_image_to_slack(response_channel, diffusion_image_url, thread_ts,
-                                            config["diffusion_image_generation"]["initial_comment"])
+                    diffusion_image_data = generate_stability_image(description, stability_api_key,
+                                                                    config["diffusion_image_generation"])
+                    if diffusion_image_data:
+                        post_image_file_to_slack(response_channel, diffusion_image_data, thread_ts,
+                                                 config["diffusion_image_generation"]["initial_comment"])
                 responded_threads[thread_ts] = True
                 return {'statusCode': 200, 'body': 'Command processed and responded to Slack'}
             else:
@@ -247,11 +247,13 @@ def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
 def openai_image_generation(description):
     try:
         response = client.images.generate(prompt=description,
-                                          n=1,
+                                          n=config["image_generation"]["n"],
                                           size=config["image_generation"]["size"],
                                           model=config["image_generation"]["model"])
         image_url = response.data[0].url
-        return image_url
+        image_response = requests.get(image_url)
+        image_response.raise_for_status()
+        return image_response.content
     except Exception as e:
         logger.error(f"Failed to generate image with OpenAI: {str(e)}")
         return None
@@ -281,15 +283,16 @@ def generate_stability_image(description, api_key, generation_config):
         return None
 
 
-def post_image_to_slack(channel, image_data, thread_ts, initial_comment):
+def post_image_file_to_slack(channel, image_data, thread_ts, initial_comment):
     try:
-        with open('/tmp/generated_image.png', 'wb') as f:
+        file_path = '/tmp/generated_image.png'
+        with open(file_path, 'wb') as f:
             f.write(image_data)
 
         response = slack_client.files_upload_v2(
             channel=channel,
             initial_comment=initial_comment,
-            file='/tmp/generated_image.png',
+            file=file_path,
             filename='generated_image.png',
             thread_ts=thread_ts
         )

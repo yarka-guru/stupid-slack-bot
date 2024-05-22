@@ -1,7 +1,7 @@
 config = {
     "text_commands": {
-        "generate_image": "згенеруй зображення:",
-        "generate_diffusion_image": "generate image:"
+        "generate_image": "згенеруй зображення",
+        "generate_diffusion_image": "generate image"
     },
     "image_analysis": {
         "model": "gpt-4o",
@@ -15,7 +15,8 @@ config = {
     "image_generation": {
         "initial_comment": "Ось згенероване DALL-E 3 зображення:",
         "model": "dall-e-3",
-        "size": "1024x1024"
+        "size": "1024x1024",
+        "n": 1
     },
     "diffusion_image_generation": {
         "initial_comment": "Ось згенероване Stable Diffusion зображення:",
