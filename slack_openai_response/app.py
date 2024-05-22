@@ -65,6 +65,11 @@ def lambda_handler(event, _):
             logger.info("Thread already responded to: %s", thread_ts)
             return {'statusCode': 200, 'body': 'Thread already responded to'}
 
+        thread_messages = get_thread_messages(response_channel, thread_ts)
+        if contains_stop_word(thread_messages):
+            logger.info("Stop word detected in thread: %s", thread_ts)
+            return {'statusCode': 200, 'body': 'Stop word detected, no response'}
+
         if slack_event.get('subtype') == 'file_share':
             logger.info("Processing file share event")
             user_content = slack_event.get('text', '')
@@ -92,7 +97,7 @@ def lambda_handler(event, _):
                 responded_threads[thread_ts] = True
                 return {'statusCode': 200, 'body': 'Command processed and responded to Slack'}
             else:
-                openai_response = generate_openai_response(text_content)
+                openai_response = generate_openai_response(text_content, thread_messages)
                 post_message_to_slack(response_channel, openai_response, thread_ts)
                 responded_threads[thread_ts] = True
                 return {'statusCode': 200, 'body': 'Text event processed'}
@@ -103,6 +108,22 @@ def lambda_handler(event, _):
     except Exception as e:
         logger.error(f"Error processing Slack event: {str(e)}")
         return {'statusCode': 500, 'body': f'Error processing event: {str(e)}'}
+
+
+def get_thread_messages(channel, thread_ts):
+    try:
+        response = slack_client.conversations_replies(channel=channel, ts=thread_ts)
+        return response.get('messages', [])
+    except SlackApiError as e:
+        logger.error(f"Error fetching thread messages: {str(e)}")
+        return []
+
+
+def contains_stop_word(messages):
+    for message in messages:
+        if config["stop_word"] in message.get('text', '').lower():
+            return True
+    return False
 
 
 def process_file(file, channel, thread_ts, user_content=""):
@@ -175,7 +196,7 @@ def analyze_image(file_path, channel, thread_ts, user_content=None):
 
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
         analysis_result = response.json()['choices'][0]['message']['content']
-        post_message_to_slack(channel, f"Image analysis result: {analysis_result}", thread_ts)
+        post_message_to_slack(channel, f"{analysis_result}", thread_ts)
     except Exception as e:
         logger.error(f"Failed to analyze image with OpenAI: {str(e)}")
         post_message_to_slack(channel, "Failed to analyze the image.", thread_ts)
@@ -247,7 +268,10 @@ def generate_stability_image(description, api_key, generation_config):
             files={"none": ''},
             data={
                 "prompt": description,
-                "output_format": generation_config["output_format"]
+                "aspect_ratio": generation_config.get("aspect_ratio", "1:1"),
+                "mode": generation_config.get("mode", "text-to-image"),
+                "model": generation_config.get("model", "sd3-turbo"),
+                "output_format": generation_config.get("output_format", "jpeg")
             }
         )
         response.raise_for_status()
@@ -274,13 +298,14 @@ def post_image_to_slack(channel, image_data, thread_ts, initial_comment):
         logger.error(f"Slack API Error: {str(e)}")
 
 
-def generate_openai_response(content):
+def generate_openai_response(content, thread_messages):
     base_prompt = config["base_prompt"]
+    full_content = "\n".join([msg.get('text', '') for msg in thread_messages])
     try:
         response = client.chat.completions.create(model=config["image_analysis"]["model"],
                                                   messages=[
                                                       {"role": "system", "content": base_prompt},
-                                                      {"role": "user", "content": content}
+                                                      {"role": "user", "content": full_content}
                                                   ])
         return response.choices[0].message.content.strip()
     except Exception as e:
