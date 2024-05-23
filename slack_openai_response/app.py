@@ -34,7 +34,7 @@ slack_client = WebClient(token=slack_bot_token)
 bot_user_id = slack_client.auth_test()["user_id"]
 openai_client = OpenAI(api_key=openai_api_key)
 
-last_responded_message = {}
+last_responded_message_ts = {}
 
 
 def lambda_handler(event, _):
@@ -56,7 +56,7 @@ def lambda_handler(event, _):
         thread_ts = slack_event.get('thread_ts') or slack_event.get('ts')
         event_ts = slack_event.get('ts')
 
-        if last_responded_message.get(thread_ts) == event_ts:
+        if last_responded_message_ts.get(thread_ts) == event_ts:
             logger.info(f"Message already responded to: {event_ts}")
             return {'statusCode': 200, 'body': 'Message already responded to'}
 
@@ -73,7 +73,7 @@ def lambda_handler(event, _):
             logger.info("No content to process in the event")
             return {'statusCode': 200, 'body': 'No content to process'}
 
-        last_responded_message[thread_ts] = event_ts
+        last_responded_message_ts[thread_ts] = event_ts
 
     except Exception as e:
         logger.error(f"Error processing Slack event: {str(e)}")
