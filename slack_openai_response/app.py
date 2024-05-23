@@ -14,6 +14,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 secrets_client = boto3.client('secretsmanager')
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.getenv('DYNAMODB_TABLE_NAME'))
 
 
 def get_secret(secret_name):
@@ -33,8 +35,6 @@ stability_api_key = get_secret(os.getenv('STABILITY_API_KEY_SECRET_NAME'))['STAB
 slack_client = WebClient(token=slack_bot_token)
 bot_user_id = slack_client.auth_test()["user_id"]
 openai_client = OpenAI(api_key=openai_api_key)
-
-last_responded_message_ts = {}
 
 
 def lambda_handler(event, _):
@@ -56,7 +56,7 @@ def lambda_handler(event, _):
         thread_ts = slack_event.get('thread_ts') or slack_event.get('ts')
         event_ts = slack_event.get('ts')
 
-        if last_responded_message_ts.get(thread_ts) == event_ts:
+        if is_message_responded(thread_ts, event_ts):
             logger.info(f"Message already responded to: {event_ts}")
             return {'statusCode': 200, 'body': 'Message already responded to'}
 
@@ -73,11 +73,28 @@ def lambda_handler(event, _):
             logger.info("No content to process in the event")
             return {'statusCode': 200, 'body': 'No content to process'}
 
-        last_responded_message_ts[thread_ts] = event_ts
+        update_last_responded_message_ts(thread_ts, event_ts)
 
     except Exception as e:
         logger.error(f"Error processing Slack event: {str(e)}")
         return {'statusCode': 500, 'body': f'Error processing event: {str(e)}'}
+
+
+def is_message_responded(thread_ts, event_ts):
+    try:
+        response = table.get_item(Key={'thread_ts': thread_ts})
+        if 'Item' in response and response['Item']['last_responded_ts'] == event_ts:
+            return True
+    except ClientError as e:
+        logger.error(f"DynamoDB error: {str(e)}")
+    return False
+
+
+def update_last_responded_message_ts(thread_ts, event_ts):
+    try:
+        table.put_item(Item={'thread_ts': thread_ts, 'last_responded_ts': event_ts})
+    except ClientError as e:
+        logger.error(f"Unable to update DynamoDB: {str(e)}")
 
 
 def respond_to_challenge(challenge):

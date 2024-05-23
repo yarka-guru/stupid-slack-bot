@@ -1,8 +1,120 @@
+### Updated CloudFormation Template
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless Slack App with OpenAI and Stability AI Integration
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 128
+    Tracing: Active
+    Runtime: python3.12
+
+Parameters:
+  SlackBotTokenSecretName:
+    Type: String
+    Description: Name of the Secrets Manager secret containing the Slack Bot API Token
+  OpenAIApiKeySecretName:
+    Type: String
+    Description: Name of the Secrets Manager secret containing the OpenAI API Key
+  StabilityApiKeySecretName:
+    Type: String
+    Description: Name of the Secrets Manager secret containing the Stability API Key
+
+Resources:
+  MyLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: [ lambda.amazonaws.com ]
+            Action: [ "sts:AssumeRole" ]
+      Policies:
+        - PolicyName: "LambdaFunctionPolicy"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:PutItem"
+                  - "dynamodb:GetItem"
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTable.TableName}"
+
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-ThreadTimestamps"
+      AttributeDefinitions:
+        - AttributeName: thread_ts
+          AttributeType: S
+      KeySchema:
+        - AttributeName: thread_ts
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  SlackOpenAIResponseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: slack_openai_response/
+      Handler: app.lambda_handler
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Architectures:
+        - arm64
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
+        Cors:
+          AllowCredentials: false
+          AllowMethods:
+            - POST
+          AllowOrigins:
+            - "*"
+      Environment:
+        Variables:
+          SLACK_BOT_TOKEN_SECRET_NAME: !Ref SlackBotTokenSecretName
+          OPENAI_API_KEY_SECRET_NAME: !Ref OpenAIApiKeySecretName
+          STABILITY_API_KEY_SECRET_NAME: !Ref StabilityApiKeySecretName
+          DYNAMODB_TABLE_NAME: !Ref DynamoDBTable
+
+Outputs:
+  SlackOpenAIResponseFunctionArn:
+    Description: "ARN of Slack OpenAI Response Lambda Function"
+    Value: !GetAtt SlackOpenAIResponseFunction.Arn
+  SlackOpenAIResponseFunctionIamRole:
+    Description: "Implicit IAM Role created for Slack OpenAI Response function"
+    Value: !GetAtt MyLambdaExecutionRole.Arn
+  DynamoDBTableName:
+    Description: "Name of the DynamoDB Table used for storing thread timestamps"
+    Value: !Ref DynamoDBTable
+```
+
+### Updated Documentation
+
 # Serverless Slack App with OpenAI and Stability AI Integration
 
 ## Description
 
-This document details the setup and deployment of a serverless Slack application that integrates with OpenAI and Stability AI to process and respond to Slack messages. The app utilizes AWS Lambda, AWS Secrets Manager, and the Slack, OpenAI, and Stability AI SDKs.
+This document details the setup and deployment of a serverless Slack application that integrates with OpenAI and Stability AI to process and respond to Slack messages. The app utilizes AWS Lambda, AWS Secrets Manager, DynamoDB, and the Slack, OpenAI, and Stability AI SDKs.
 
 ## Requirements
 
@@ -72,6 +184,7 @@ Set the following environment variables in the AWS Lambda configuration:
 - `SLACK_BOT_TOKEN_SECRET_NAME` with the name of the secret containing the Slack Bot API Token.
 - `OPENAI_API_KEY_SECRET_NAME` with the name of the secret containing the OpenAI API Key.
 - `STABILITY_API_KEY_SECRET_NAME` with the name of the secret containing the Stability API Key.
+- `DYNAMODB_TABLE_NAME` with the name of the DynamoDB table created.
 
 ### Step 5: API Endpoints
 
@@ -99,6 +212,10 @@ The bot can analyze images and other file types uploaded to Slack. When a file i
 
 Utilizes AWS Secrets Manager to securely store and retrieve the Slack Bot Token, OpenAI API Key, and Stability API Key.
 
+### DynamoDB Integration
+
+A DynamoDB table is used to store the last responded message timestamp for each thread, ensuring that the bot responds only once per message.
+
 ### OpenAI and Stability AI Integration
 
 Uses the OpenAI Python SDK and Stability AI API to generate responses or images based on the text received from Slack messages.
@@ -125,7 +242,7 @@ The bot includes a stop word functionality to prevent further responses in a thr
 
 ## Additional Notes
 
-- Ensure that your AWS IAM roles and policies are correctly set up to allow Lambda functions to access Secrets Manager and post logs.
+- Ensure that your AWS IAM roles and policies are correctly set up to allow Lambda functions to access Secrets Manager, DynamoDB, and post logs.
 - Update your Slack, OpenAI, and Stability API keys periodically for security.
 - For a detailed guide on creating a Slack app and adding permissions, refer to the [Slack API documentation](https://api.slack.com/apps).
 
