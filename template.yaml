@@ -52,12 +52,14 @@ Resources :
                 Action :
                   - "dynamodb:PutItem"
                   - "dynamodb:GetItem"
+                  - "dynamodb:UpdateItem"
                 Resource :
                   - !GetAtt DynamoDBTable.Arn
 
   DynamoDBTable :
     Type : AWS::DynamoDB::Table
     Properties :
+      TableName : !Sub "${AWS::StackName}-ThreadTimestamps"
       AttributeDefinitions :
         - AttributeName : thread_ts
           AttributeType : S
