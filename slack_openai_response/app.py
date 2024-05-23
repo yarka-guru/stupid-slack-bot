@@ -176,9 +176,10 @@ def analyze_image(file_path, channel, thread_ts, user_content=None):
         payload = {
             "model": config["image_analysis"]["model"],
             "messages": [
-                {"role": "user", "content": [{"type": "text", "text": user_content}, {"type": "image_url",
-                                                                                      "image_url": {
-                                                                                          "url": f"data:image/jpeg;base64,{base64_image}"}}]},
+                {"role": "user", "content": [
+                    {"type": "text", "text": user_content},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                ]}
             ],
             "max_tokens": config["image_analysis"]["max_tokens"]
         }
@@ -206,8 +207,10 @@ def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
         payload = {
             "model": config["image_analysis"]["model"],
             "messages": [
-                {"role": "user", "content": [{"type": "text", "text": user_content}, {"type": "file", "file": {
-                    "file": f"data:{mimetype};base64,{base64_file}"}}]},
+                {"role": "user", "content": [
+                    {"type": "text", "text": user_content},
+                    {"type": "file", "file": {"file": f"data:{mimetype};base64,{base64_file}"}}
+                ]}
             ],
             "max_tokens": config["image_analysis"]["max_tokens"]
         }
