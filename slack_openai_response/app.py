@@ -129,13 +129,13 @@ def handle_text_event(slack_event, response_channel, thread_ts, thread_messages)
     text_content = slack_event['text'].lower()
     command = next((cmd for cmd in config["text_commands"].values() if cmd in text_content), None)
     if command:
-        process_command(command, text_content, response_channel, thread_ts)
+        process_command(command, text_content, response_channel, thread_ts, thread_messages)
     else:
         openai_response = generate_openai_response(text_content, thread_messages)
         post_message_to_slack(response_channel, openai_response, thread_ts)
 
 
-def process_command(command, text_content, response_channel, thread_ts):
+def process_command(command, text_content, response_channel, thread_ts, thread_messages):
     description = text_content.split(command, 1)[1].strip()
     if command == config["text_commands"]["generate_image"]:
         image_data = openai_image_generation(description)
