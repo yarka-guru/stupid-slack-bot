@@ -32,9 +32,9 @@ stability_api_key = get_secret(os.getenv('STABILITY_API_KEY_SECRET_NAME'))['STAB
 
 slack_client = WebClient(token=slack_bot_token)
 bot_user_id = slack_client.auth_test()["user_id"]
-client = OpenAI(api_key=openai_api_key)
+openai_client = OpenAI(api_key=openai_api_key)
 
-responded_threads = {}
+last_responded_message = {}
 
 
 def lambda_handler(event, _):
@@ -43,27 +43,22 @@ def lambda_handler(event, _):
     event_body = json.loads(event.get('body', '{}'))
 
     if 'challenge' in event_body:
-        logger.info("Responding to Slack challenge")
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'challenge': event_body['challenge']}),
-            'headers': {'Content-Type': 'application/json'}
-        }
+        return respond_to_challenge(event_body['challenge'])
 
     try:
         slack_event = event_body.get('event', {})
         logger.info("Processing Slack event: %s", json.dumps(slack_event))
 
         if slack_event.get('user') == bot_user_id:
-            logger.info("Ignoring event from bot")
             return {'statusCode': 200, 'body': 'Event ignored'}
 
         response_channel = slack_event.get('channel')
         thread_ts = slack_event.get('thread_ts') or slack_event.get('ts')
+        event_ts = slack_event.get('ts')
 
-        if thread_ts in responded_threads:
-            logger.info("Thread already responded to: %s", thread_ts)
-            return {'statusCode': 200, 'body': 'Thread already responded to'}
+        if last_responded_message.get(thread_ts) == event_ts:
+            logger.info(f"Message already responded to: {event_ts}")
+            return {'statusCode': 200, 'body': 'Message already responded to'}
 
         thread_messages = get_thread_messages(response_channel, thread_ts)
         if contains_stop_word(thread_messages):
@@ -71,43 +66,26 @@ def lambda_handler(event, _):
             return {'statusCode': 200, 'body': 'Stop word detected, no response'}
 
         if slack_event.get('subtype') == 'file_share':
-            logger.info("Processing file share event")
-            user_content = slack_event.get('text', '')
-            for file in slack_event.get('files', []):
-                process_file(file, response_channel, thread_ts, user_content)
-            responded_threads[thread_ts] = True
-            return {'statusCode': 200, 'body': 'File event processed'}
-
-        if 'text' in slack_event:
-            text_content = slack_event['text'].lower()
-            command = next((cmd for cmd in config["text_commands"].values() if cmd in text_content), None)
-            if command:
-                description = text_content.split(command, 1)[1].strip()
-                if command == config["text_commands"]["generate_image"]:
-                    image_data = openai_image_generation(description)
-                    if image_data:
-                        post_image_file_to_slack(response_channel, image_data, thread_ts,
-                                                 config["image_generation"]["initial_comment"])
-                elif command == config["text_commands"]["generate_diffusion_image"]:
-                    diffusion_image_data = generate_stability_image(description, stability_api_key,
-                                                                    config["diffusion_image_generation"])
-                    if diffusion_image_data:
-                        post_image_file_to_slack(response_channel, diffusion_image_data, thread_ts,
-                                                 config["diffusion_image_generation"]["initial_comment"])
-                responded_threads[thread_ts] = True
-                return {'statusCode': 200, 'body': 'Command processed and responded to Slack'}
-            else:
-                openai_response = generate_openai_response(text_content, thread_messages)
-                post_message_to_slack(response_channel, openai_response, thread_ts)
-                responded_threads[thread_ts] = True
-                return {'statusCode': 200, 'body': 'Text event processed'}
+            handle_file_share_event(slack_event, response_channel, thread_ts)
+        elif 'text' in slack_event:
+            handle_text_event(slack_event, response_channel, thread_ts, thread_messages)
         else:
             logger.info("No content to process in the event")
             return {'statusCode': 200, 'body': 'No content to process'}
 
+        last_responded_message[thread_ts] = event_ts
+
     except Exception as e:
         logger.error(f"Error processing Slack event: {str(e)}")
         return {'statusCode': 500, 'body': f'Error processing event: {str(e)}'}
+
+
+def respond_to_challenge(challenge):
+    return {
+        'statusCode': 200,
+        'body': json.dumps({'challenge': challenge}),
+        'headers': {'Content-Type': 'application/json'}
+    }
 
 
 def get_thread_messages(channel, thread_ts):
@@ -120,10 +98,38 @@ def get_thread_messages(channel, thread_ts):
 
 
 def contains_stop_word(messages):
-    for message in messages:
-        if config["stop_word"] in message.get('text', '').lower():
-            return True
-    return False
+    return any(config["stop_word"] in message.get('text', '').lower() for message in messages)
+
+
+def handle_file_share_event(slack_event, response_channel, thread_ts):
+    logger.info("Processing file share event")
+    user_content = slack_event.get('text', '')
+    for file in slack_event.get('files', []):
+        process_file(file, response_channel, thread_ts, user_content)
+
+
+def handle_text_event(slack_event, response_channel, thread_ts, thread_messages):
+    text_content = slack_event['text'].lower()
+    command = next((cmd for cmd in config["text_commands"].values() if cmd in text_content), None)
+    if command:
+        process_command(command, text_content, response_channel, thread_ts)
+    else:
+        openai_response = generate_openai_response(text_content, thread_messages)
+        post_message_to_slack(response_channel, openai_response, thread_ts)
+
+
+def process_command(command, text_content, response_channel, thread_ts):
+    description = text_content.split(command, 1)[1].strip()
+    if command == config["text_commands"]["generate_image"]:
+        image_data = openai_image_generation(description)
+        if image_data:
+            post_image_file_to_slack(response_channel, image_data, thread_ts,
+                                     config["image_generation"]["initial_comment"])
+    elif command == config["text_commands"]["generate_diffusion_image"]:
+        diffusion_image_data = generate_stability_image(description)
+        if diffusion_image_data:
+            post_image_file_to_slack(response_channel, diffusion_image_data, thread_ts,
+                                     config["diffusion_image_generation"]["initial_comment"])
 
 
 def process_file(file, channel, thread_ts, user_content=""):
@@ -138,7 +144,6 @@ def process_file(file, channel, thread_ts, user_content=""):
             with open(file_path, 'wb') as f:
                 f.write(response.content)
             logger.info("File downloaded and saved: %s", file_path)
-            logger.info("Processing file: %s", file_path)
             analyze_file(file_path, file['mimetype'], channel, thread_ts, user_content)
         else:
             logger.error(f"Failed to download the file: {file_url}")
@@ -148,14 +153,10 @@ def process_file(file, channel, thread_ts, user_content=""):
 
 
 def analyze_file(file_path, mimetype, channel, thread_ts, user_content):
-    try:
-        if mimetype.startswith('image/'):
-            analyze_image(file_path, channel, thread_ts, user_content)
-        else:
-            logger.info("Non-image file type detected: %s", mimetype)
-            analyze_document(file_path, channel, thread_ts, mimetype, user_content)
-    except Exception as e:
-        logger.error(f"Error analyzing file: {str(e)}")
+    if mimetype.startswith('image/'):
+        analyze_image(file_path, channel, thread_ts, user_content)
+    else:
+        analyze_document(file_path, channel, thread_ts, mimetype, user_content)
 
 
 def encode_image(image_path):
@@ -175,28 +176,16 @@ def analyze_image(file_path, channel, thread_ts, user_content=None):
         payload = {
             "model": config["image_analysis"]["model"],
             "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": user_content
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        }
-                    ]
-                }
+                {"role": "user", "content": [{"type": "text", "text": user_content}, {"type": "image_url",
+                                                                                      "image_url": {
+                                                                                          "url": f"data:image/jpeg;base64,{base64_image}"}}]},
             ],
             "max_tokens": config["image_analysis"]["max_tokens"]
         }
 
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
         analysis_result = response.json()['choices'][0]['message']['content']
-        post_message_to_slack(channel, f"{analysis_result}", thread_ts)
+        post_message_to_slack(channel, analysis_result, thread_ts)
     except Exception as e:
         logger.error(f"Failed to analyze image with OpenAI: {str(e)}")
         post_message_to_slack(channel, "Failed to analyze the image.", thread_ts)
@@ -217,21 +206,8 @@ def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
         payload = {
             "model": config["image_analysis"]["model"],
             "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": user_content
-                        },
-                        {
-                            "type": "file",
-                            "file": {
-                                "file": f"data:{mimetype};base64,{base64_file}"
-                            }
-                        }
-                    ]
-                }
+                {"role": "user", "content": [{"type": "text", "text": user_content}, {"type": "file", "file": {
+                    "file": f"data:{mimetype};base64,{base64_file}"}}]},
             ],
             "max_tokens": config["image_analysis"]["max_tokens"]
         }
@@ -246,10 +222,10 @@ def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
 
 def openai_image_generation(description):
     try:
-        response = client.images.generate(prompt=description,
-                                          n=config["image_generation"]["n"],
-                                          size=config["image_generation"]["size"],
-                                          model=config["image_generation"]["model"])
+        response = openai_client.images.generate(prompt=description,
+                                                 n=config["image_generation"]["n"],
+                                                 size=config["image_generation"]["size"],
+                                                 model=config["image_generation"]["model"])
         image_url = response.data[0].url
         image_response = requests.get(image_url)
         image_response.raise_for_status()
@@ -259,21 +235,21 @@ def openai_image_generation(description):
         return None
 
 
-def generate_stability_image(description, api_key, generation_config):
+def generate_stability_image(description):
     try:
         response = requests.post(
-            generation_config["endpoint"],
+            config["diffusion_image_generation"]["endpoint"],
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {stability_api_key}",
                 "Accept": "image/*"
             },
             files={"none": ''},
             data={
                 "prompt": description,
-                "aspect_ratio": generation_config.get("aspect_ratio", "1:1"),
-                "mode": generation_config.get("mode", "text-to-image"),
-                "model": generation_config.get("model", "sd3-turbo"),
-                "output_format": generation_config.get("output_format", "jpeg")
+                "aspect_ratio": config["diffusion_image_generation"].get("aspect_ratio", "1:1"),
+                "mode": config["diffusion_image_generation"].get("mode", "text-to-image"),
+                "model": config["diffusion_image_generation"].get("model", "sd3-turbo"),
+                "output_format": config["diffusion_image_generation"].get("output_format", "jpeg")
             }
         )
         response.raise_for_status()
@@ -303,13 +279,13 @@ def post_image_file_to_slack(channel, image_data, thread_ts, initial_comment):
 
 def generate_openai_response(content, thread_messages):
     base_prompt = config["base_prompt"]
-    full_content = "\n".join([msg.get('text', '') for msg in thread_messages])
+    full_content = "\n\n".join([msg.get('text', '') for msg in thread_messages])
     try:
-        response = client.chat.completions.create(model=config["image_analysis"]["model"],
-                                                  messages=[
-                                                      {"role": "system", "content": base_prompt},
-                                                      {"role": "user", "content": full_content}
-                                                  ])
+        response = openai_client.chat.completions.create(model=config["image_analysis"]["model"],
+                                                         messages=[
+                                                             {"role": "system", "content": base_prompt},
+                                                             {"role": "user", "content": full_content}
+                                                         ])
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"Failed to interact with OpenAI: {str(e)}")
