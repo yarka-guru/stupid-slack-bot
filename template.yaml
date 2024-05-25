@@ -48,27 +48,6 @@ Resources :
                   - "secretsmanager:GetSecretValue"
                 Resource :
                   - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
-              - Effect : "Allow"
-                Action :
-                  - "dynamodb:PutItem"
-                  - "dynamodb:GetItem"
-                  - "dynamodb:UpdateItem"
-                Resource :
-                  - !GetAtt DynamoDBTable.Arn
-
-  DynamoDBTable :
-    Type : AWS::DynamoDB::Table
-    Properties :
-      TableName : !Sub "${AWS::StackName}-ThreadTimestamps"
-      AttributeDefinitions :
-        - AttributeName : thread_ts
-          AttributeType : S
-      KeySchema :
-        - AttributeName : thread_ts
-          KeyType : HASH
-      ProvisionedThroughput :
-        ReadCapacityUnits : 5
-        WriteCapacityUnits : 5
 
   SlackOpenAIResponseFunction :
     Type : AWS::Serverless::Function
@@ -92,7 +71,6 @@ Resources :
           SLACK_BOT_TOKEN_SECRET_NAME : !Ref SlackBotTokenSecretName
           OPENAI_API_KEY_SECRET_NAME : !Ref OpenAIApiKeySecretName
           STABILITY_API_KEY_SECRET_NAME : !Ref StabilityApiKeySecretName
-          DYNAMODB_TABLE_NAME : !Ref DynamoDBTable
 
 Outputs :
   SlackOpenAIResponseFunctionArn :
@@ -101,6 +79,3 @@ Outputs :
   SlackOpenAIResponseFunctionIamRole :
     Description : "Implicit IAM Role created for Slack OpenAI Response function"
     Value : !GetAtt MyLambdaExecutionRole.Arn
-  DynamoDBTableName :
-    Description : "Name of the DynamoDB Table used for storing thread timestamps"
-    Value : !Ref DynamoDBTable

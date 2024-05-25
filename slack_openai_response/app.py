@@ -14,8 +14,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 secrets_client = boto3.client('secretsmanager')
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(os.getenv('DYNAMODB_TABLE_NAME'))
 
 
 def get_secret(secret_name):
@@ -53,14 +51,12 @@ def lambda_handler(event, _):
 
         response_channel = slack_event.get('channel')
         thread_ts = slack_event.get('thread_ts') or slack_event.get('ts')
-        event_ts = slack_event.get('ts')
 
-        if is_message_responded(thread_ts):
-            logger.info(f"Message already responded to: {event_ts}")
-            return {'statusCode': 200, 'body': 'Message already responded to'}
+        if is_latest_message_from_bot(response_channel, thread_ts):
+            logger.info("Latest message in thread is from bot, skipping response.")
+            return {'statusCode': 200, 'body': 'Latest message from bot, no response'}
 
-        thread_messages = get_thread_messages(response_channel, thread_ts)
-        if contains_stop_word(thread_messages):
+        if contains_stop_word(get_thread_messages(response_channel, thread_ts)):
             logger.info("Stop word detected in thread: %s", thread_ts)
             return {'statusCode': 200, 'body': 'Stop word detected, no response'}
 
@@ -72,26 +68,16 @@ def lambda_handler(event, _):
             logger.info("No content to process in the event")
             return {'statusCode': 200, 'body': 'No content to process'}
 
-        update_last_responded_message_ts(thread_ts)
     except Exception as e:
         logger.error(f"Error processing Slack event: {str(e)}")
         return {'statusCode': 500, 'body': f'Error processing event: {str(e)}'}
 
 
-def is_message_responded(thread_ts):
-    try:
-        response = table.get_item(Key={'thread_ts': thread_ts})
-        return 'Item' in response
-    except ClientError as e:
-        logger.error(f"DynamoDB error: {str(e)}")
-        return False
-
-
-def update_last_responded_message_ts(thread_ts):
-    try:
-        table.put_item(Item={'thread_ts': thread_ts, 'last_responded_ts': thread_ts})
-    except ClientError as e:
-        logger.error(f"Unable to update DynamoDB: {str(e)}")
+def is_latest_message_from_bot(channel, thread_ts):
+    messages = get_thread_messages(channel, thread_ts)
+    if messages and messages[-1].get('user') == bot_user_id:
+        return True
+    return False
 
 
 def respond_to_challenge(challenge):
