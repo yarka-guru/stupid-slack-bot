@@ -52,18 +52,19 @@ def lambda_handler(event, _):
         response_channel = slack_event.get('channel')
         thread_ts = slack_event.get('thread_ts') or slack_event.get('ts')
 
-        if is_latest_message_from_bot(response_channel, thread_ts):
+        thread_messages = get_thread_messages(response_channel, thread_ts)
+        if is_latest_message_from_bot(thread_messages):
             logger.info("Latest message in thread is from bot, skipping response.")
             return {'statusCode': 200, 'body': 'Latest message from bot, no response'}
 
-        if contains_stop_word(get_thread_messages(response_channel, thread_ts)):
+        if contains_stop_word(thread_messages):
             logger.info("Stop word detected in thread: %s", thread_ts)
             return {'statusCode': 200, 'body': 'Stop word detected, no response'}
 
         if slack_event.get('subtype') == 'file_share':
-            handle_file_share_event(slack_event, response_channel, thread_ts)
+            handle_file_share_event(slack_event, response_channel, thread_ts, thread_messages)
         elif 'text' in slack_event:
-            handle_text_event(slack_event, response_channel, thread_ts)
+            handle_text_event(slack_event, response_channel, thread_ts, thread_messages)
         else:
             logger.info("No content to process in the event")
             return {'statusCode': 200, 'body': 'No content to process'}
@@ -73,9 +74,8 @@ def lambda_handler(event, _):
         return {'statusCode': 500, 'body': f'Error processing event: {str(e)}'}
 
 
-def is_latest_message_from_bot(channel, thread_ts):
-    messages = get_thread_messages(channel, thread_ts)
-    if messages and messages[-1].get('user') == bot_user_id:
+def is_latest_message_from_bot(thread_messages):
+    if thread_messages and thread_messages[-1].get('user') == bot_user_id:
         return True
     return False
 
@@ -90,8 +90,14 @@ def respond_to_challenge(challenge):
 
 def get_thread_messages(channel, thread_ts):
     try:
-        response = slack_client.conversations_replies(channel=channel, ts=thread_ts)
-        return response.get('messages', [])
+        response = slack_client.conversations_replies(channel=channel, ts=thread_ts, inclusive=True, limit=100)
+        messages = response.get('messages', [])
+        while response['has_more']:
+            response = slack_client.conversations_replies(channel=channel, ts=thread_ts,
+                                                          cursor=response['response_metadata']['next_cursor'],
+                                                          inclusive=True, limit=100)
+            messages.extend(response.get('messages', []))
+        return messages
     except SlackApiError as e:
         logger.error(f"Error fetching thread messages: {str(e)}")
         return []
@@ -101,24 +107,24 @@ def contains_stop_word(messages):
     return any(config["stop_word"] in message.get('text', '').lower() for message in messages)
 
 
-def handle_file_share_event(slack_event, response_channel, thread_ts):
+def handle_file_share_event(slack_event, response_channel, thread_ts, thread_messages):
     logger.info("Processing file share event")
     user_content = slack_event.get('text', '')
     for file in slack_event.get('files', []):
-        process_file(file, response_channel, thread_ts, user_content)
+        process_file(file, response_channel, thread_ts, user_content, thread_messages)
 
 
-def handle_text_event(slack_event, response_channel, thread_ts):
+def handle_text_event(slack_event, response_channel, thread_ts, thread_messages):
     text_content = slack_event['text'].lower()
     command = next((cmd for cmd in config["text_commands"].values() if cmd in text_content), None)
     if command:
-        process_command(command, text_content, response_channel, thread_ts)
+        process_command(command, text_content, response_channel, thread_ts, thread_messages)
     else:
-        openai_response = generate_openai_response(text_content)
+        openai_response = generate_openai_response(text_content, thread_messages)
         post_message_to_slack(response_channel, openai_response, thread_ts)
 
 
-def process_command(command, text_content, response_channel, thread_ts):
+def process_command(command, text_content, response_channel, thread_ts, thread_messages):
     description = text_content.split(command, 1)[1].strip()
     if command == config["text_commands"]["generate_image"]:
         image_data = openai_image_generation(description)
@@ -132,7 +138,7 @@ def process_command(command, text_content, response_channel, thread_ts):
                                      config["diffusion_image_generation"]["initial_comment"])
 
 
-def process_file(file, channel, thread_ts, user_content=""):
+def process_file(file, channel, thread_ts, user_content, thread_messages):
     try:
         file_url = file['url_private']
         headers = {'Authorization': f'Bearer {slack_bot_token}'}
@@ -143,18 +149,18 @@ def process_file(file, channel, thread_ts, user_content=""):
             with open(file_path, 'wb') as f:
                 f.write(response.content)
             logger.info("File downloaded and saved: %s", file_path)
-            analyze_file(file_path, file['mimetype'], channel, thread_ts, user_content)
+            analyze_file(file_path, file['mimetype'], channel, thread_ts, user_content, thread_messages)
         else:
             logger.error(f"Failed to download the file: {file_url}")
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
 
 
-def analyze_file(file_path, mimetype, channel, thread_ts, user_content):
+def analyze_file(file_path, mimetype, channel, thread_ts, user_content, thread_messages):
     if mimetype.startswith('image/'):
-        analyze_image(file_path, channel, thread_ts, user_content)
+        analyze_image(file_path, channel, thread_ts, user_content, thread_messages)
     else:
-        analyze_document(file_path, channel, thread_ts, mimetype, user_content)
+        analyze_document(file_path, channel, thread_ts, mimetype, user_content, thread_messages)
 
 
 def encode_image(image_path):
@@ -162,7 +168,7 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 
-def analyze_image(file_path, channel, thread_ts, user_content=None):
+def analyze_image(file_path, channel, thread_ts, user_content, thread_messages):
     user_content = user_content or config["image_analysis"]["analysis_prompt"]
     try:
         base64_image = encode_image(file_path)
@@ -188,7 +194,7 @@ def analyze_image(file_path, channel, thread_ts, user_content=None):
         post_message_to_slack(channel, "Failed to analyze the image.", thread_ts)
 
 
-def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
+def analyze_document(file_path, channel, thread_ts, mimetype, user_content, thread_messages):
     user_content = user_content or config["image_analysis"]["analysis_prompt"]
     try:
         with open(file_path, "rb") as f:
@@ -271,12 +277,15 @@ def post_image_file_to_slack(channel, image_data, thread_ts, initial_comment):
         logger.error(f"Slack API Error: {str(e)}")
 
 
-def generate_openai_response(content):
+def generate_openai_response(content, thread_messages):
     base_prompt = config["base_prompt"]
     try:
+        # Concatenate all previous messages in the thread for context
+        thread_text = "\n\n".join([msg.get('text', '') for msg in thread_messages])
+        full_content = f"{thread_text}\n\n{content}"
         response = openai_client.chat.completions.create(model=config["image_analysis"]["model"], messages=[
             {"role": "system", "content": base_prompt},
-            {"role": "user", "content": content}
+            {"role": "user", "content": full_content}
         ])
         return response.choices[0].message.content.strip()
     except Exception as e:
