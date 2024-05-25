@@ -39,7 +39,6 @@ openai_client = OpenAI(api_key=openai_api_key)
 
 def lambda_handler(event, _):
     logger.info("Received event: %s", json.dumps(event))
-
     event_body = json.loads(event.get('body', '{}'))
 
     if 'challenge' in event_body:
@@ -56,7 +55,7 @@ def lambda_handler(event, _):
         thread_ts = slack_event.get('thread_ts') or slack_event.get('ts')
         event_ts = slack_event.get('ts')
 
-        if is_message_responded(thread_ts, event_ts):
+        if is_message_responded(thread_ts):
             logger.info(f"Message already responded to: {event_ts}")
             return {'statusCode': 200, 'body': 'Message already responded to'}
 
@@ -73,26 +72,24 @@ def lambda_handler(event, _):
             logger.info("No content to process in the event")
             return {'statusCode': 200, 'body': 'No content to process'}
 
-        update_last_responded_message_ts(thread_ts, event_ts)
-
+        update_last_responded_message_ts(thread_ts)
     except Exception as e:
         logger.error(f"Error processing Slack event: {str(e)}")
         return {'statusCode': 500, 'body': f'Error processing event: {str(e)}'}
 
 
-def is_message_responded(thread_ts, event_ts):
+def is_message_responded(thread_ts):
     try:
         response = table.get_item(Key={'thread_ts': thread_ts})
-        if 'Item' in response and response['Item']['last_responded_ts'] == event_ts:
-            return True
+        return 'Item' in response
     except ClientError as e:
         logger.error(f"DynamoDB error: {str(e)}")
-    return False
+        return False
 
 
-def update_last_responded_message_ts(thread_ts, event_ts):
+def update_last_responded_message_ts(thread_ts):
     try:
-        table.put_item(Item={'thread_ts': thread_ts, 'last_responded_ts': event_ts})
+        table.put_item(Item={'thread_ts': thread_ts, 'last_responded_ts': thread_ts})
     except ClientError as e:
         logger.error(f"Unable to update DynamoDB: {str(e)}")
 
@@ -155,7 +152,6 @@ def process_file(file, channel, thread_ts, user_content=""):
         headers = {'Authorization': f'Bearer {slack_bot_token}'}
         logger.info("Downloading file from: %s", file_url)
         response = requests.get(file_url, headers=headers)
-
         if response.status_code == 200:
             file_path = '/tmp/uploaded_file'
             with open(file_path, 'wb') as f:
@@ -164,7 +160,6 @@ def process_file(file, channel, thread_ts, user_content=""):
             analyze_file(file_path, file['mimetype'], channel, thread_ts, user_content)
         else:
             logger.error(f"Failed to download the file: {file_url}")
-
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
 
@@ -189,7 +184,6 @@ def analyze_image(file_path, channel, thread_ts, user_content=None):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {openai_api_key}"
         }
-
         payload = {
             "model": config["image_analysis"]["model"],
             "messages": [
@@ -200,7 +194,6 @@ def analyze_image(file_path, channel, thread_ts, user_content=None):
             ],
             "max_tokens": config["image_analysis"]["max_tokens"]
         }
-
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
         analysis_result = response.json()['choices'][0]['message']['content']
         post_message_to_slack(channel, analysis_result, thread_ts)
@@ -214,13 +207,11 @@ def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
     try:
         with open(file_path, "rb") as f:
             file_bytes = f.read()
-
         base64_file = base64.b64encode(file_bytes).decode('utf-8')
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {openai_api_key}"
         }
-
         payload = {
             "model": config["image_analysis"]["model"],
             "messages": [
@@ -231,7 +222,6 @@ def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
             ],
             "max_tokens": config["image_analysis"]["max_tokens"]
         }
-
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
         analysis_result = response.json()['choices'][0]['message']['content']
         post_message_to_slack(channel, f"Document analysis result: {analysis_result}", thread_ts)
@@ -242,8 +232,7 @@ def analyze_document(file_path, channel, thread_ts, mimetype, user_content):
 
 def openai_image_generation(description):
     try:
-        response = openai_client.images.generate(prompt=description,
-                                                 n=config["image_generation"]["n"],
+        response = openai_client.images.generate(prompt=description, n=config["image_generation"]["n"],
                                                  size=config["image_generation"]["size"],
                                                  model=config["image_generation"]["model"])
         image_url = response.data[0].url
@@ -284,7 +273,6 @@ def post_image_file_to_slack(channel, image_data, thread_ts, initial_comment):
         file_path = '/tmp/generated_image.png'
         with open(file_path, 'wb') as f:
             f.write(image_data)
-
         response = slack_client.files_upload_v2(
             channel=channel,
             initial_comment=initial_comment,
@@ -301,11 +289,10 @@ def generate_openai_response(content, thread_messages):
     base_prompt = config["base_prompt"]
     full_content = "\n\n".join([msg.get('text', '') for msg in thread_messages])
     try:
-        response = openai_client.chat.completions.create(model=config["image_analysis"]["model"],
-                                                         messages=[
-                                                             {"role": "system", "content": base_prompt},
-                                                             {"role": "user", "content": full_content}
-                                                         ])
+        response = openai_client.chat.completions.create(model=config["image_analysis"]["model"], messages=[
+            {"role": "system", "content": base_prompt},
+            {"role": "user", "content": full_content}
+        ])
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"Failed to interact with OpenAI: {str(e)}")
