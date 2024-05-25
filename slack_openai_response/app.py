@@ -67,7 +67,7 @@ def lambda_handler(event, _):
         if slack_event.get('subtype') == 'file_share':
             handle_file_share_event(slack_event, response_channel, thread_ts)
         elif 'text' in slack_event:
-            handle_text_event(slack_event, response_channel, thread_ts, thread_messages)
+            handle_text_event(slack_event, response_channel, thread_ts)
         else:
             logger.info("No content to process in the event")
             return {'statusCode': 200, 'body': 'No content to process'}
@@ -122,17 +122,17 @@ def handle_file_share_event(slack_event, response_channel, thread_ts):
         process_file(file, response_channel, thread_ts, user_content)
 
 
-def handle_text_event(slack_event, response_channel, thread_ts, thread_messages):
+def handle_text_event(slack_event, response_channel, thread_ts):
     text_content = slack_event['text'].lower()
     command = next((cmd for cmd in config["text_commands"].values() if cmd in text_content), None)
     if command:
-        process_command(command, text_content, response_channel, thread_ts, thread_messages)
+        process_command(command, text_content, response_channel, thread_ts)
     else:
-        openai_response = generate_openai_response(text_content, thread_messages)
+        openai_response = generate_openai_response(text_content)
         post_message_to_slack(response_channel, openai_response, thread_ts)
 
 
-def process_command(command, text_content, response_channel, thread_ts, thread_messages):
+def process_command(command, text_content, response_channel, thread_ts):
     description = text_content.split(command, 1)[1].strip()
     if command == config["text_commands"]["generate_image"]:
         image_data = openai_image_generation(description)
@@ -285,13 +285,12 @@ def post_image_file_to_slack(channel, image_data, thread_ts, initial_comment):
         logger.error(f"Slack API Error: {str(e)}")
 
 
-def generate_openai_response(content, thread_messages):
+def generate_openai_response(content):
     base_prompt = config["base_prompt"]
-    full_content = "\n\n".join([msg.get('text', '') for msg in thread_messages])
     try:
         response = openai_client.chat.completions.create(model=config["image_analysis"]["model"], messages=[
             {"role": "system", "content": base_prompt},
-            {"role": "user", "content": full_content}
+            {"role": "user", "content": content}
         ])
         return response.choices[0].message.content.strip()
     except Exception as e:
